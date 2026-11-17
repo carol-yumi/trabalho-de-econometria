@@ -3,7 +3,7 @@ rm(list = ls())
 gc()
 
 # Instalação e carregamento dos pacotes necessários
-pacotes <- c("dplyr", "data.table", "AER", "miscFuncs", "car", "lmtest", "stringr")
+pacotes <- c("dplyr", "data.table", "AER", "modelsummary", "car", "lmtest", "stringr")
 install.packages(pacotes)
 for (i in pacotes) {
   library(i, character.only = TRUE)}
@@ -66,17 +66,26 @@ var(base$Quantidade_Item)
 apreen <- base$Quantidade_Item # variável dependente -> quantidade apreendida
 lat <- base$Latitude # variável independente -> latitude (proxy para clima)
 
+base <- base %>%
+  mutate(Latitude_Categórica = case_when(
+    Latitude >= -3.26e+11 & Latitude <= -2.5e+11 ~ 1, # Subtropical
+    Latitude > -2.5e+11 & Latitude <= -1.0e+11 ~ 2, # Tropical
+    Latitude > -1.0e+11 & Latitude <= 4.443e+10 ~ 3 # Equatorial
+  ))
+
+lat_categ <- base$Latitude_Categórica
+
 ## controles
 ### dummy de zona urbana ou rural
 urbano <- ifelse(base$Zona_Ocorrencia == "URBANA", 1, 0)
 mean(urbano)
 
 ### dummies das regiões
-N <- ifelse(base$UF == c("AC","RO","AM","RR","PA","AP","TO"), 1, 0) 
-NE <- ifelse(base$ UF == c("MA","PI","BA","SE","AL","PE","PB","RN","CE"), 1, 0)
-CO <- ifelse(base$UF == c("MT","MS","GO","DF"), 1, 0)
-SE <- ifelse(base$UF == c("SP","RJ","ES","MG"), 1, 0) 
-S <- ifelse(base$UF == c("PR","SC","RS"), 1, 0)
+N <- ifelse(base$UF %in% c("AC","RO","AM","RR","PA","AP","TO"), 1, 0) 
+NE <- ifelse(base$ UF %in% c("MA","PI","BA","SE","AL","PE","PB","RN","CE"), 1, 0)
+CO <- ifelse(base$UF %in% c("MT","MS","GO","DF"), 1, 0)
+SE <- ifelse(base$UF %in% c("SP","RJ","ES","MG"), 1, 0) 
+S <- ifelse(base$UF %in% c("PR","SC","RS"), 1, 0)
 
 mean(N)
 mean(NE)
@@ -142,14 +151,39 @@ reg_contr <- lm(log(apreen + 1) ~ lat + I(lat^2) + N + NE + CO + SE + anf + coc
 bptest(reg_contr)
 bptest(reg_contr, ~ fitted(reg_contr) + I(fitted(reg_contr)^2))
 
-mult <- coeftest(reg_contr, vcov. = vcovHC, type = "HC1")
+coeftest(reg_contr, vcov. = vcovHC, type = "HC1")
+
+## montagem da tabela
+teste <- list(simples = reg_simples, quadrático = reg_quad, múltiplo = reg_contr)
+modelsummary(teste, output = "latex", fmt = fmt_sci(digits = 3))
 
 
-coef_simples <- summary(reg_simples)$coefficients
-coef_quad <- summary(reg_quad)$coefficients
-coef_mult <- mult[,1]
+## apenas variável categórica
+reg_categ <- lm(log(apreen + 1) ~ lat_categ)
 
-matriz <- cbind(coef_simples[, 1], coef_quad[, 1], coef_mult)
-colnames(matriz) <- c("Simples", "Quadrático", "Múltiplo")
+bptest(reg_categ)
+bptest(reg_categ, ~ fitted(reg_categ) + I(fitted(reg_categ)^2))
 
-latextable(matriz, scientific = -3)
+summary(reg_categ)
+
+## adicionando os controles
+### com variável categórica
+reg_quad_categ <- lm(log(apreen + 1) ~ lat_categ + I(lat_categ^2))
+
+bptest(reg_quad_categ)
+bptest(reg_quad_categ, ~ fitted(reg_quad_categ) + I(fitted(reg_quad_categ)^2))
+
+summary(reg_quad_categ)
+
+reg_contr_categ <- lm(log(apreen + 1) ~ lat_categ + I(lat_categ^2) + N + NE + CO
+                      + SE + anf + coc + crack + ecst + lp + lsd + mac + med 
+                      + pmac + viap + com + BR)
+
+bptest(reg_contr_categ)
+bptest(reg_contr_categ, ~ fitted(reg_contr_categ) + I(fitted(reg_contr_categ)^2))
+
+coeftest(reg_contr_categ, vcov. = vcovHC, type = "HC1")
+
+### montagem da tabela
+modelos <- list(simples = reg_categ, quadratico = reg_quad_categ, múltiplo = reg_contr_categ)
+modelsummary(modelos, output = "latex")
