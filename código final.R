@@ -1,4 +1,4 @@
-# Limpeza
+# Limpeza do ambiente
 rm(list = ls())
 gc()
 
@@ -38,6 +38,7 @@ relatorio_na <- data.table(
 relatorio_na[Qtd_NA > 0][order(-Porcentagem)]
 
 ## verificação de outliers
+plot(x = base$Latitude, y = base$Quantidade_Item)
 hist(base$Quantidade_Item)
 hist(base$Latitude)
 
@@ -70,6 +71,8 @@ quantile(base$Quantidade_Item, 0.99)
 summary(base$Quantidade_Item)
 summary(base$Latitude)
 var(base$Quantidade_Item)
+
+plot(x = base$Latitude, y = base$Quantidade_Item)
 
 # Definindo as variáveis de interesse 
 ## variáveis principais
